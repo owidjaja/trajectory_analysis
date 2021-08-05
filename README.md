@@ -4,7 +4,8 @@ Trajectory Analysis
 linear.ipynb: linear implementation of trajectory recovery
 * dataset stored in a 2D array of trajectories, each of which has has their own sequence of points based on csv file
 * already made up to finding MAE, but with hardcoded test data
-* todo: try code with random and bigger test data
+* errors: changes to array, shallow copy potential problems, mutability
+* todo: try code with random and bigger test data, check code robustness
 ![image](https://user-images.githubusercontent.com/72503180/128402415-5e071dd8-0f7a-4294-bdd5-a2eaa6ce0b43.png)
 
 
