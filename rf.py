@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[35]:
+# In[1]:
 
 
 from matplotlib import pyplot as plt
@@ -13,12 +13,12 @@ import pandas as pd
 # https://www.usna.edu/Users/oceano/pguth/md_help/html/approx_equivalents.htm
 UNIT_CELL_SIZE = 0.001      # 0.001° ~= 111 metres
 
-df_rows = pd.read_csv("./taxi_dataset/validation_data.csv", sep='\n', header=None, nrows=200)
+df_rows = pd.read_csv("./taxi_dataset/validation_data.csv", sep='\n', header=None, nrows=100)
 df_raw = df_rows[0].str.split(',', expand=True)
 df_raw.head(10)
 
 
-# In[36]:
+# In[2]:
 
 
 df = df_raw.iloc[:,:]
@@ -26,7 +26,7 @@ df = df_raw.iloc[:,:]
 df.head(10)
 
 
-# In[37]:
+# In[3]:
 
 
 def cal_dis(lat_1,lon_1,lat_2,lon_2):
@@ -41,7 +41,7 @@ def cal_dis(lat_1,lon_1,lat_2,lon_2):
     return d
 
 
-# In[38]:
+# In[4]:
 
 
 from operator import attrgetter
@@ -97,8 +97,8 @@ class Trajectory:
 
         count_grid = [ [0]*width_size for i in range(length_size)]
         for point in self.points:
-            x = round((point.lon - self.min_lon) / UNIT_CELL_SIZE)
-            y = round((point.lat - self.min_lat) / UNIT_CELL_SIZE)
+            x = int(round((point.lon - self.min_lon) / UNIT_CELL_SIZE))
+            y = int(round((point.lat - self.min_lat) / UNIT_CELL_SIZE))
             try:
                 count_grid[x][y] += 1
             except:
@@ -174,7 +174,7 @@ class Point:
         return str(self)
 
 
-# In[39]:
+# In[5]:
 
 
 # load all trajectories and points in it into a list
@@ -188,7 +188,7 @@ for index, row in df.iterrows():
     counter += 1
 
 
-# In[40]:
+# In[6]:
 
 
 # finding global min, max of lon, lat to find length and width size of whole grid
@@ -209,20 +209,20 @@ width_size = math.ceil(grid_width / UNIT_CELL_SIZE) + 1
 print("length_size:", length_size); print("width_size:" , width_size)
 
 
-# In[41]:
+# In[7]:
 
 
 """ determine the coordinate and attach an id to the point object """
 for traj in taxi_trajectories:
     for point in traj.points:
-        x = round((point.lon - global_min_lon) / UNIT_CELL_SIZE)
-        y = round((point.lat - global_min_lat) / UNIT_CELL_SIZE)
+        x = int(round((point.lon - global_min_lon) / UNIT_CELL_SIZE))
+        y = int(round((point.lat - global_min_lat) / UNIT_CELL_SIZE))
         
         point.coor = (x,y)                  # currently not used
         point.coor_id = x*width_size + y    # currently use this as target label
 
 
-# In[42]:
+# In[8]:
 
 
 import random
@@ -250,7 +250,7 @@ def random_clear_total(sampling_rate, use_seed=False):
 random_clear_total(0.5, use_seed=True)
 
 
-# In[43]:
+# In[9]:
 
 
 # features_ls is a list of all points with their features,
@@ -302,7 +302,7 @@ for traj in taxi_trajectories:
                 last_truth_pt = curr_pt
 
 
-# In[44]:
+# In[10]:
 
 
 # for i in range(len(features_ls)):
@@ -316,7 +316,7 @@ df_train.columns = ["interval_prev", "prev_grid", "interval_next", "next_grid", 
 df_train
 
 
-# In[45]:
+# In[11]:
 
 
 # object type:  https://stackoverflow.com/questions/45346550/valueerror-unknown-label-type-unknown
@@ -329,7 +329,7 @@ print(y.shape)
 print(y)
 
 
-# In[46]:
+# In[12]:
 
 
 from sklearn.model_selection import train_test_split
@@ -342,7 +342,7 @@ print(len(X_train))
 print(len(X_test))
 
 
-# In[47]:
+# In[13]:
 
 
 from sklearn.ensemble import RandomForestClassifier
@@ -352,7 +352,7 @@ model.fit(X_train, y_train)
 # model.get_params()
 
 
-# In[ ]:
+# In[14]:
 
 
 y_predicted = model.predict(X_test)
@@ -363,7 +363,7 @@ print("\ntruth:")
 print(y_test[:10])
 
 
-# In[ ]:
+# In[23]:
 
 
 # https://stackoverflow.com/questions/49830562/how-to-count-the-total-number-of-similar-elements-in-two-lists-occuring-at-the-s
@@ -385,14 +385,27 @@ for i in range(len(y_predicted)):
         continue
 
     error_count += 1
-    grid_dist = math.dist(y_predicted[i], y_test[i])
-    total_error_km += grid_dist * UNIT_CELL_SIZE * 111          # 1 degree = 111 km
+    # grid_dist = math.dist(y_predicted[i], y_test[i])
+
+    real_y = y_test[i] % width_size
+    real_x = y_test[i] // width_size
+
+    pred_y = y_predicted[i] % width_size
+    pred_x = y_predicted[i] // width_size
+
+    try:
+        grid_dist = math.dist((real_x, real_y), (pred_x, pred_y))
+        total_error_km += grid_dist * UNIT_CELL_SIZE * 111          # 1 degree = 111 km
+    except:
+        my_dist = math.sqrt( (real_x - pred_x)**2 + (real_y - pred_y)**2 )
+        total_error_km += my_dist * UNIT_CELL_SIZE * 111          # 1 degree = 111 km
+
 
 mae = total_error_km / error_count
 print("MAE in km:", mae)
 
 
-# In[ ]:
+# In[16]:
 
 
 # prediction step, then return accuracy
