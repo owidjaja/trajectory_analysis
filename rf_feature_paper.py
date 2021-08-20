@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[165]:
+# In[65]:
 
 
 from matplotlib import pyplot as plt
@@ -18,7 +18,7 @@ df_raw = df_rows[0].str.split(',', expand=True)
 df_raw.head(10)
 
 
-# In[166]:
+# In[66]:
 
 
 df = df_raw.iloc[:,:]
@@ -26,7 +26,7 @@ df = df_raw.iloc[:,:]
 df.head(10)
 
 
-# In[167]:
+# In[67]:
 
 
 def cal_dis(lat_1,lon_1,lat_2,lon_2):
@@ -41,7 +41,7 @@ def cal_dis(lat_1,lon_1,lat_2,lon_2):
     return d
 
 
-# In[168]:
+# In[68]:
 
 
 from operator import attrgetter
@@ -97,8 +97,8 @@ class Trajectory:
 
         count_grid = [ [0]*width_size for i in range(length_size)]
         for point in self.points:
-            x = int(round((point.lon - self.min_lon) / UNIT_CELL_SIZE))
-            y = int(round((point.lat - self.min_lat) / UNIT_CELL_SIZE))
+            x = round((point.lon - self.min_lon) / UNIT_CELL_SIZE)
+            y = round((point.lat - self.min_lat) / UNIT_CELL_SIZE)
             try:
                 count_grid[x][y] += 1
             except:
@@ -149,8 +149,7 @@ class Point:
         self.next_pt_time = -1
 
         # for rf target
-        self.coor = (-1,-1)
-        self.coor_id = -1
+        self.coor = [-1,-1]
 
     def set_truth_false(self):
         self.is_truth = False
@@ -174,10 +173,9 @@ class Point:
         return str(self)
 
 
-# In[169]:
+# In[69]:
 
 
-# load all trajectories and points in it into a list
 taxi_trajectories = []
 
 counter = 0
@@ -187,11 +185,15 @@ for index, row in df.iterrows():
     taxi_trajectories[counter].calc_entropy()
     counter += 1
 
+# Test output of first traj ROG, Ent
+# taxi_trajectories[0].calc_radius_of_gyration()
+# print("ROG:", taxi_trajectories[0].radius_of_gyration)
+# taxi_trajectories[0].calc_entropy()
+# print("Ent:", taxi_trajectories[0].entropy)
 
-# In[170]:
 
+# In[70]:
 
-# finding global min, max of lon, lat to find length and width size of whole grid
 
 global_min_lon = (min(taxi_trajectories, key=attrgetter('min_lon')).min_lon)
 global_max_lon = (max(taxi_trajectories, key=attrgetter('max_lon')).max_lon)
@@ -206,23 +208,33 @@ grid_width  = global_max_lat - global_min_lat
 
 length_size = math.ceil(grid_length / UNIT_CELL_SIZE) + 1
 width_size = math.ceil(grid_width / UNIT_CELL_SIZE) + 1
-print("length_size:", length_size); print("width_size:" , width_size)
+print("length:", length_size); print("width:" , width_size)
 
 
-# In[171]:
+# In[71]:
 
 
-""" determine the coordinate and attach an id to the point object """
+point_grid = [ [[[]]]*width_size for i in range(length_size)]   # create a 2d array of lists of points (3D array of points)
+count_grid = [ [0]*width_size for i in range(length_size)]
+
 for traj in taxi_trajectories:
     for point in traj.points:
-        x = int(round((point.lon - global_min_lon) / UNIT_CELL_SIZE))
-        y = int(round((point.lat - global_min_lat) / UNIT_CELL_SIZE))
-        
-        point.coor = (x,y)                  # currently not used
-        point.coor_id = x*width_size + y    # currently use this as target label
+        x = round((point.lon - global_min_lon) / UNIT_CELL_SIZE)
+        y = round((point.lat - global_min_lat) / UNIT_CELL_SIZE)
+
+        point_grid[x][y].append(point)
+        count_grid[x][y] += 1
+
+        point.coor = [x,y]
+
+        # print(point)
+        # print("x:({}), y:({})".format(x,y))
+        # print()
+
+print(pd.DataFrame(count_grid))
 
 
-# In[172]:
+# In[72]:
 
 
 import random
@@ -247,14 +259,19 @@ def random_clear_total(sampling_rate, use_seed=0):
 
     [ls_points[i].set_truth_false() for i in random_test_index]
 
-random_clear_total(0.3, use_seed=1)
+random_clear_total(0.6, use_seed=1)
 
 
-# In[173]:
+# In[73]:
 
 
-# features_ls is a list of all points with their features,
-# currently, features are [last_truth_pt.lon, last_truth_pt.lat, last_truth_pt.timestamp, curr_pt.timestamp, next_truth_pt.lon, next_truth_pt.lat, next_truth_pt.timestamp, traj.radius_of_gyration, traj.entropy, curr_pt.coor_id])
+# for traj in taxi_trajectories:
+#     traj.get_points_info()
+
+
+# In[74]:
+
+
 features_ls = []
 
 for traj in taxi_trajectories:
@@ -272,105 +289,98 @@ for traj in taxi_trajectories:
                 # encountered point with non-truth value
                 to_predict = True
                 num_missing_data = 1
-                # features_ls.append([last_truth_pt.lon, last_truth_pt.lat, last_truth_pt.timestamp, curr_pt.timestamp, curr_pt.coor_id])
-                
-                prev_time_interval = curr_pt.timestamp - last_truth_pt.timestamp
-                features_ls.append([prev_time_interval, last_truth_pt.coor_id, curr_pt.timestamp, curr_pt.coor_id])
+                features_ls.append([last_truth_pt.lon, last_truth_pt.lat, last_truth_pt.timestamp, curr_pt.timestamp, curr_pt.coor])
         
         else:
             # in a streak of non-truth points
             if curr_pt.is_truth is False:
+                # curr_pt.prev_pt_time = last_truth_pt.timestamp
                 num_missing_data += 1
-                # features_ls.append([last_truth_pt.lon, last_truth_pt.lat, last_truth_pt.timestamp, curr_pt.timestamp, curr_pt.coor_id])
-                
-                prev_time_interval = curr_pt.timestamp - last_truth_pt.timestamp
-                features_ls.append([prev_time_interval, last_truth_pt.coor_id, curr_pt.timestamp, curr_pt.coor_id])
+                features_ls.append([last_truth_pt.lon, last_truth_pt.lat, last_truth_pt.timestamp, curr_pt.timestamp, curr_pt.coor])
 
             else:
                 # found truth point
                 to_predict = False
                 next_truth_pt = curr_pt
 
+                # print("ltt:", last_truth_pt.timestamp)
+                # print("ntt:", next_truth_pt.timestamp)
+
+                # [features_ls[i][-1:-1][next_truth_pt.lon, next_truth_pt.lat, next_truth_pt.timestamp, traj.radius_of_gyration, traj.entropy])\
+                #     for i in range(len(features_ls)-1, len(features_ls)-num_missing_data-1, -1)]
+
                 # print("nmd:", num_missing_data)
                 curr_len = len(features_ls)
                 for i in range(curr_len-1, curr_len-num_missing_data-1, -1):
-                    # features_ls[i][-1:-1] = [next_truth_pt.lon, next_truth_pt.lat, next_truth_pt.timestamp, traj.radius_of_gyration, traj.entropy]
-                    
-                    features_ls[i][2] = next_truth_pt.timestamp - features_ls[i][2]
-                    features_ls[i][-1:-1] = [next_truth_pt.coor_id, traj.radius_of_gyration, traj.entropy]
+                    # print(features_ls[i])
+                    features_ls[i][-1:-1] = [next_truth_pt.lon, next_truth_pt.lat, next_truth_pt.timestamp, traj.radius_of_gyration, traj.entropy]
+                    # print(features_ls[i])
+                    # print()
 
                 last_truth_pt = curr_pt
 
 
-# In[174]:
+# In[75]:
 
 
 # for i in range(len(features_ls)):
 #     print(features_ls[i])
 
 df_train = pd.DataFrame(features_ls)
-# df_train.columns = ["prev_lon", "prev_lat", "prev_t", "curr_t", "next_lon", "next_lat", "next_t", "ROG", "Ent", "target"]
-
-df_train.columns = ["interval_prev", "prev_grid", "interval_next", "next_grid", "ROG", "Ent", "Target (coor_id)"]
-
+df_train.columns = ["prev lon", "prev lat", "prev t", "curr t", "next lon", "next lat", "next t", "ROG", "Ent", "target"]
 df_train
 
 
-# In[175]:
+# In[76]:
 
 
 # object type:  https://stackoverflow.com/questions/45346550/valueerror-unknown-label-type-unknown
 # np.vstack:    https://stackoverflow.com/questions/19459017/how-to-convert-a-numpy-2d-array-with-object-dtype-to-a-regular-2d-array-of-float
 # iloc:         https://stackoverflow.com/questions/55291667/getting-typeerror-slicenone-none-none-0-is-an-invalid-key
-
-y = np.ravel(df_train.iloc[:,-1])
-
-print(y.shape)
-print(y)
+y = np.vstack(df_train.iloc[:,-1]).astype('int')
+y
 
 
-# In[176]:
+# In[77]:
 
 
 from sklearn.model_selection import train_test_split
 
 # y_test is truth target
-X_train, X_test, y_train, y_test = train_test_split(df_train.iloc[:,:-1], y, test_size=0.2)
+X_train, X_test, y_train, y_test = train_test_split(df_train.drop(['target'],axis='columns'), y, test_size=0.2)
 
 # X_train is the training data, X_test is testing data
 print(len(X_train))
 print(len(X_test))
 
 
-# In[177]:
+# In[78]:
 
 
 from sklearn.ensemble import RandomForestClassifier
 model = RandomForestClassifier()
 
 model.fit(X_train, y_train)
-model.get_params()
+# model.get_params()
 
 
-# In[178]:
+# In[79]:
 
 
 y_predicted = model.predict(X_test)
 print("y_predicted")
-print(y_predicted[:50])
+print(y_predicted[:20])
 
 print("\ntruth:")
-print(y_test[:50])
+print(y_test[:20])
 
 
-# In[179]:
+# In[80]:
 
 
 # https://stackoverflow.com/questions/49830562/how-to-count-the-total-number-of-similar-elements-in-two-lists-occuring-at-the-s
 # num_exact_match = sum(list(pred) == list(truth) for pred, truth in zip(y_predicted, y_test))
-
-exact_matches  = [i for i, (a, b) in enumerate(zip(y_predicted, y_test)) if a == b]
-
+exact_matches = [i for i, (a, b) in enumerate(zip(y_predicted, y_test)) if list(a) == list(b)]
 num_exact_match = len(exact_matches)
 accuracy = num_exact_match/len(y_test)
 
@@ -385,52 +395,9 @@ for i in range(len(y_predicted)):
         continue
 
     error_count += 1
-    # grid_dist = math.dist(y_predicted[i], y_test[i])
-
-    real_y = y_test[i] % width_size
-    real_x = y_test[i] // width_size
-
-    pred_y = y_predicted[i] % width_size
-    pred_x = y_predicted[i] // width_size
-
-    # print("real:", (real_x,real_y))
-    # print("pred:", (pred_x,pred_y))
-
-    try:
-        grid_dist = math.dist((real_x, real_y), (pred_x, pred_y))
-        # print("error_km:", grid_dist * UNIT_CELL_SIZE * 111)
-        total_error_km += grid_dist * UNIT_CELL_SIZE * 111          # 1 degree = 111 km
-    except:
-        my_dist = math.sqrt( (real_x - pred_x)**2 + (real_y - pred_y)**2 )
-        # print("error_km:", my_dist * UNIT_CELL_SIZE * 111)
-        total_error_km += my_dist * UNIT_CELL_SIZE * 111          # 1 degree = 111 km
-    
-    # print("")
-
-
+    grid_dist = math.dist(y_predicted[i], y_test[i])
+    total_error_km += grid_dist * UNIT_CELL_SIZE * 111          # 1 degree = 111 km
 
 mae = total_error_km / error_count
 print("MAE in km:", mae)
-
-
-# In[180]:
-
-
-# unrelated, curious to see average distance of each reported points
-
-dist_ls = []
-prev_point_coor = (-1,-1)
-for traj in taxi_trajectories:
-    prev_point_coor = (traj.points[0].lon, traj.points[0].lat)
-    
-    for point in traj.points[1:]:
-        this_point_coor = (point.lon, point.lat)
-        dist_ls.append( math.dist(prev_point_coor, this_point_coor) )
-        prev_point_coor = this_point_coor
-
-print(dist_ls[:10])
-
-mean_dist_deg = sum(dist_ls) / len(dist_ls)
-print("avg distance in degrees:", mean_dist_deg)
-print("avg distance in km:", mean_dist_deg * 111)
 
